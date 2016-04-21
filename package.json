@@ -57,7 +57,9 @@
     "express-openapi": "^0.20.0",
     "js-yaml": "^3.5.2",
     "morgan": "^1.7.0",
-    "promise-queue": "^2.2.3"
+    "promise-queue": "^2.2.3",
+    "win-resume": "^1.0.2",
+    "win-wake": "^1.0.0"
   },
   "devDependencies": {
     "del": "^2.2.0",

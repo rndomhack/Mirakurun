@@ -21,6 +21,7 @@ import child_process = require('child_process');
 import stream = require('stream');
 import fs = require('fs');
 import util = require('util');
+import _ = require('./_');
 import common = require('./common');
 import log = require('./log');
 import config = require('./config');
@@ -45,6 +46,7 @@ class TunerDevice extends events.EventEmitter {
     private _command: string = null;
     private _process: child_process.ChildProcess = null;
     private _stream: stream.Readable = null;
+    private _wake: Object = {};
 
     private _users: User[] = [];
 
@@ -283,6 +285,8 @@ class TunerDevice extends events.EventEmitter {
         // flowing start
         this._stream.on('data', this._streamOnData.bind(this));
 
+        _.power.addWake(this._wake);
+
         log.info('TunerDevice#%d process has spawned by command `%s` (pid=%d)', this._index, cmd, this._process.pid);
 
         return Promise.resolve();
@@ -300,6 +304,8 @@ class TunerDevice extends events.EventEmitter {
         this._isAvailable = false;
 
         this._stream.removeAllListeners('data');
+
+        _.power.removeWake(this._wake);
 
         if (this._closing === true) {
             let i, l = this._users.length;

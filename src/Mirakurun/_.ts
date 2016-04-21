@@ -20,6 +20,7 @@ import Tuner = require('./Tuner');
 import Channel = require('./Channel');
 import Service = require('./Service');
 import Program = require('./Program');
+import Power = require('./Power');
 
 interface _ {
     event?: Event;
@@ -27,6 +28,7 @@ interface _ {
     channel?: Channel;
     service?: Service;
     program?: Program;
+    power?: Power;
 }
 
 const _: _ = {};

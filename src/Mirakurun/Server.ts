@@ -32,6 +32,7 @@ import Tuner = require('./Tuner');
 import Channel = require('./Channel');
 import Service = require('./Service');
 import Program = require('./Program');
+import Power = require('./Power');
 
 const pkg = require('../../package.json');
 
@@ -133,6 +134,7 @@ class Server {
         new Channel();
         new Service();
         new Program();
+        new Power();
     }
 }
 

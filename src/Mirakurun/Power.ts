@@ -17,7 +17,7 @@
 'use strict';
 
 import _ from './_';
-import log from './log';
+import * as log from './log';
 
 const Wake = require('win-wake');
 const Resume = require('win-resume');

@@ -15,12 +15,12 @@
 */
 'use strict';
 
-import Event = require('./Event');
-import Tuner = require('./Tuner');
-import Channel = require('./Channel');
-import Service = require('./Service');
-import Program = require('./Program');
-import Power = require('./Power');
+import Event from './Event';
+import Tuner from './Tuner';
+import Channel from './Channel';
+import Service from './Service';
+import Program from './Program';
+import Power from './Power';
 
 interface _ {
     event?: Event;
@@ -33,4 +33,4 @@ interface _ {
 
 const _: _ = {};
 
-export = _;
+export default _;

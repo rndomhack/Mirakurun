@@ -16,13 +16,13 @@
 /// <reference path="../../typings/node/node.d.ts" />
 'use strict';
 
-import _ = require('./_');
-import log = require('./log');
+import _ from './_';
+import log from './log';
 
 const Wake = require('win-wake');
 const Resume = require('win-resume');
 
-class Power {
+export default class Power {
 
     private _wake: any;
     private _resume: any;
@@ -158,5 +158,3 @@ class Power {
         }
     }
 }
-
-export = Power;

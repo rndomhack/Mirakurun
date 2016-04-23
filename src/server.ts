@@ -24,6 +24,12 @@ if (process.platform !== 'win32') {
 }
 
 import { execSync } from 'child_process';
+import _ from './Mirakurun/_';
+import Event from './Mirakurun/Event';
+import Tuner from './Mirakurun/Tuner';
+import Channel from './Mirakurun/Channel';
+import Service from './Mirakurun/Service';
+import Program from './Mirakurun/Program';
 import Server from './Mirakurun/Server';
 
 process.title = 'Mirakurun: Server';
@@ -42,6 +48,12 @@ if (process.platform === 'linux') {
     execSync(`renice -n -10 -p ${ process.pid }`);
     execSync(`ionice -c 1 -n 7 -p ${ process.pid }`);
 }
+
+_.event = new Event();
+_.tuner = new Tuner();
+_.channel = new Channel();
+_.service = new Service();
+_.program = new Program();
 
 new Server();
 

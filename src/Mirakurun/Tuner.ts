@@ -45,8 +45,6 @@ export default class Tuner {
 
     constructor() {
 
-        this._load();
-
         _.tuner = this;
     }
 

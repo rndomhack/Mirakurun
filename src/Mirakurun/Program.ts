@@ -31,8 +31,6 @@ export default class Program {
 
     constructor() {
 
-        _.program = this;
-
         this._load();
 
         setInterval(this._gc.bind(this), 1000 * 60 * 15);

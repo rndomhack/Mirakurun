@@ -27,11 +27,6 @@ import * as log from './log';
 import * as config from './config';
 import regexp from './regexp';
 import system from './system';
-import Event from './Event';
-import Tuner from './Tuner';
-import Channel from './Channel';
-import Service from './Service';
-import Program from './Program';
 
 const pkg = require('../../package.json');
 
@@ -127,12 +122,6 @@ class Server {
 
             this._servers.push(server);
         });
-
-        new Event();
-        new Tuner();
-        new Channel();
-        new Service();
-        new Program();
     }
 }
 

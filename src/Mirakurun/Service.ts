@@ -30,8 +30,6 @@ export default class Service {
 
     constructor() {
 
-        _.service = this;
-
         this._load();
     }
 

@@ -45,6 +45,8 @@ export default class Tuner {
 
     constructor() {
 
+        _.tuner = this;
+
         this._load();
     }
 
@@ -53,41 +55,20 @@ export default class Tuner {
     }
 
     get(index: number): TunerDevice {
-
-        let i = 0, l = this._devices.length;
-        for (; i < l; i++) {
-            if (this._devices[i].index === index) {
-                return this._devices[i];
-            }
-        }
-
-        return null;
+        return this._devices.find(device => device.index === index) || null;
     }
 
     typeExists(type: common.ChannelType): boolean {
-
-        let i, l = this._devices.length;
-        for (i = 0; i < l; i++) {
-            if (this._devices[i].config.types.indexOf(type) !== -1) {
-                return true;
-            }
-        }
-
-        return false;
+        return this._devices.some(device => device.config.types.indexOf(type) !== -1);
     }
 
     getChannelStream(channel: ChannelItem, user: common.User): Promise<stream.Readable> {
 
-        let networkId;
-
         const services = channel.getServices();
-        if (services.length !== 0) {
-            networkId = services[0].networkId;
-        }
 
         const setting: StreamSetting = {
             channel: channel,
-            networkId: networkId,
+            networkId: services.length !== 0 ? services[0].networkId : void 0,
             parseEIT: true
         };
 
@@ -119,7 +100,9 @@ export default class Tuner {
         return this._getStream(setting, user);
     }
 
-    getEPG(channel: ChannelItem, seconds: number): Promise<void> {
+    getEPG(channel: ChannelItem, seconds?: number): Promise<void> {
+
+        seconds = seconds || 60 * 1000
 
         let networkId;
 
@@ -143,10 +126,12 @@ export default class Tuner {
 
         return this._getStream(setting, user)
             .then(stream => {
-                return new Promise<void>((resolve) => {
+                return new Promise<void>(resolve => {
+
                     setTimeout(() => stream.emit('close'), seconds * 1000);
+
                     stream.once('epgReady', () => stream.emit('close'));
-                    stream.once('close', resolve);
+                    stream.once('final', resolve);
                 });
             })
             .catch(error => {
@@ -154,7 +139,9 @@ export default class Tuner {
             });
     }
 
-    getServices(channel: ChannelItem): Promise<db.Service[]> {
+    getServices(channel: ChannelItem, seconds?: number): Promise<db.Service[]> {
+
+        seconds = seconds || 10 * 1000
 
         const setting: StreamSetting = {
             channel: channel,
@@ -170,18 +157,18 @@ export default class Tuner {
 
         return this._getStream(setting, user)
             .then(stream => {
-                return new Promise((resolve, reject) => {
+                return new Promise<db.Service[]>((resolve, reject) => {
 
                     let services: db.Service[] = null;
 
-                    setTimeout(() => stream.emit('close'), 10000);
+                    setTimeout(() => stream.emit('close'), seconds * 1000);
 
                     stream.once('services', _services => {
                         services = _services;
                         stream.emit('close');
                     });
 
-                    stream.once('close', () => {
+                    stream.once('final', () => {
 
                         stream.removeAllListeners('services');
 
@@ -252,26 +239,25 @@ export default class Tuner {
 
             const devices = this._getDevicesByType(setting.channel.type);
 
-            let tryCount = 20;
-            let i, l = devices.length;
+            let tryCount = 10;
 
             function find() {
 
                 let device: TunerDevice = null;
 
                 // 1. join to existing
-                for (i = 0; i < l; i++) {
-                    if (devices[i].isAvailable === true && devices[i].channel === setting.channel) {
-                        device = devices[i];
+                for (let dev of devices) {
+                    if (dev.isAvailable === true && dev.channel === setting.channel) {
+                        device = dev;
                         break;
                     }
                 }
 
                 // 2. start as new
                 if (device === null) {
-                    for (i = 0; i < l; i++) {
-                        if (devices[i].isFree === true) {
-                            device = devices[i];
+                    for (let dev of devices) {
+                        if (dev.isFree === true) {
+                            device = dev;
                             break;
                         }
                     }
@@ -279,9 +265,9 @@ export default class Tuner {
 
                 // 3. replace existing
                 if (device === null) {
-                    for (i = 0; i < l; i++) {
-                        if (devices[i].isAvailable === true && devices[i].users.length === 0) {
-                            device = devices[i];
+                    for (let dev of devices) {
+                        if (dev.isAvailable === true && dev.users.length === 0) {
+                            device = dev;
                             break;
                         }
                     }
@@ -289,9 +275,9 @@ export default class Tuner {
 
                 // 4. takeover existing
                 if (device === null) {
-                    for (i = 0; i < l; i++) {
-                        if (devices[i].isUsing === true && devices[i].getPriority() < user.priority) {
-                            device = devices[i];
+                    for (let dev of devices) {
+                        if (dev.isUsing === true && dev.getPriority() < user.priority) {
+                            device = dev
                             break;
                         }
                     }
@@ -300,7 +286,7 @@ export default class Tuner {
                 if (device === null) {
                     --tryCount;
                     if (tryCount > 0) {
-                        setTimeout(find, 250);
+                        setTimeout(find, 1000);
                     } else {
                         reject(new Error('no available tuners'));
                     }
@@ -323,6 +309,8 @@ export default class Tuner {
                                 decoder.stderr.pipe(process.stderr);
                                 decoder.stdout.once('close', () => tsFilter.emit('close'));
                                 tsFilter.once('close', () => decoder.kill('SIGKILL'));
+                                tsFilter.once('final', () => decoder.stdout.emit('final'));
+                                tsFilter.once('services', services => decoder.stdout.emit('services', services));
                                 tsFilter.pipe(decoder.stdin);
                                 resolve(decoder.stdout);
                             }
@@ -333,22 +321,13 @@ export default class Tuner {
                         });
                 }
             }
+
             find();
         });
     }
 
     private _getDevicesByType(type: common.ChannelType): TunerDevice[] {
-
-        const devices = [];
-
-        let i, l = this._devices.length;
-        for (i = 0; i < l; i++) {
-            if (this._devices[i].config.types.indexOf(type) !== -1) {
-                devices.push(this._devices[i]);
-            }
-        }
-
-        return devices;
+        return this._devices.filter(device => device.config.types.indexOf(type) !== -1);
     }
 
     static all(): TunerDevice[] {

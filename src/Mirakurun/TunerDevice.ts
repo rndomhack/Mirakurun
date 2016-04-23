@@ -134,84 +134,104 @@ export default class TunerDevice extends events.EventEmitter {
 
     startStream(user: User, stream: stream.Writable, channel?: ChannelItem): Promise<void> {
 
-        log.debug('TunerDevice#%d start stream for user `%s` (priority=%d)...', this._index, user.id, user.priority);
+        return new Promise<void>((resolve, reject) => {
+            log.debug('TunerDevice#%d start stream for user `%s` (priority=%d)...', this._index, user.id, user.priority);
 
-        if (this._isAvailable === false) {
-            return Promise.reject(new Error(util.format('TunerDevice#%d is not available', this._index)));
-        }
+            if (this._isAvailable === false) {
+                reject(new Error(util.format('TunerDevice#%d is not available', this._index)));
+                return;
+            }
 
-        const resolve = () => {
+            const streaming = () => {
 
-            log.info('TunerDevice#%d streaming to user `%s` (priority=%d)', this._index, user.id, user.priority);
+                log.info('TunerDevice#%d streaming to user `%s` (priority=%d)', this._index, user.id, user.priority);
 
-            user._stream = stream;
-            this._users.push(user);
+                user._stream = stream;
+                this._users.push(user);
 
-            stream.once('close', () => this.endStream(user));
+                stream.once('close', () => this.endStream(user));
+            };
 
-            return Promise.resolve();
-        };
+            if (!channel) {
+                if (!this._stream) {
+                    reject(new Error(util.format('TunerDevice#%d has not stream', this._index)));
+                    return;
+                } else {
+                    streaming();
+                    resolve();
+                    return;
+                }
+            }
 
-        if (!channel) {
-            if (!this._stream) {
-                return Promise.reject(new Error(util.format('TunerDevice#%d has not stream', this._index)));
+            if (this._config.types.indexOf(channel.type) === -1) {
+                reject(new Error(util.format('TunerDevice#%d is not supported for channel type `%s`', this._index, channel.type)));
+                return;
+            }
+
+            if (this._stream) {
+                if (channel.channel === this._channel.channel) {
+                    streaming();
+                    resolve();
+                    return;
+                } else if (user.priority <= this.getPriority()) {
+                    reject(new Error(util.format('TunerDevice#%d has higher priority user', this._index)));
+                    return;
+                }
+
+                resolve(this._kill(true)
+                    .then(() => {
+                        this._spawn(channel);
+                        streaming()
+                    }));
+                return;
             } else {
-                return resolve();
+                this._spawn(channel);
+                streaming();
+                resolve();
+                return;
             }
-        }
-
-        if (this._config.types.indexOf(channel.type) === -1) {
-            return Promise.reject(
-                new Error(util.format('TunerDevice#%d is not supported for channel type `%s`', this._index, channel.type))
-            );
-        }
-
-        if (this._stream) {
-            if (channel.channel === this._channel.channel) {
-                return resolve();
-            } else if (user.priority <= this.getPriority()) {
-                return Promise.reject(new Error(util.format('TunerDevice#%d has higher priority user', this._index)));
-            }
-
-            return this._kill(true)
-                .then(() => this._spawn(channel))
-                .catch(err => Promise.reject(err))
-                .then(resolve);
-        } else {
-            return this._spawn(channel).then(resolve);
-        }
+        });
     }
 
     endStream(user: User): void {
 
         log.debug('TunerDevice#%d end stream for user `%s` (priority=%d)...', this._index, user.id, user.priority);
 
-        let i, l = this._users.length;
-        for (i = 0; i < l; i++) {
-            if (this._users[i].id === user.id && this._users[i].priority === user.priority) {
-                this._users[i]._stream.end();
-                this._users.splice(i, 1);
-                break;
-            }
-        }
+        let stream = null;
+
+        this._users.some((_user, i) => {
+
+            if (_user.id !== user.id || _user.priority !== user.priority) return false;
+
+            _user._stream.end();
+            this._users.splice(i, 1);
+            stream = _user._stream;
+            return true;
+        });
 
         if (this._users.length === 0) {
             setTimeout(() => {
                 if (this._users.length === 0 && this._process) {
-                    this._kill(true).catch(log.error);
+                    this._kill(true)
+                        .catch(log.error)
+                        .then(() => {
+                            stream.emit('final');
+                        });
                 }
-            }, 3000);
+            }, 1000);
+        } else {
+            stream.emit('final');
         }
 
         log.info('TunerDevice#%d end streaming to user `%s` (priority=%d)', this._index, user.id, user.priority);
     }
 
-    private _spawn(ch): Promise<void> {
+    private _spawn(ch): void {
 
         log.debug('TunerDevice#%d spawn...', this._index);
 
         if (this._process) {
-            return Promise.reject(new Error(util.format('TunerDevice#%d has process', this._index)));
+            throw new Error(util.format('TunerDevice#%d has process', this._index));
         }
 
         let cmd = this._config.command;
@@ -284,14 +304,12 @@ export default class TunerDevice extends events.EventEmitter {
         this._stream.on('data', this._streamOnData.bind(this));
 
         log.info('TunerDevice#%d process has spawned by command `%s` (pid=%d)', this._index, cmd, this._process.pid);
-
-        return Promise.resolve();
     }
 
     private _streamOnData(chunk: Buffer): void {
 
-        for (let i = 0, l = this._users.length; i < l; i++) {
-            this._users[i]._stream.write(chunk);
+        for (let user of this._users) {
+            user._stream.write(chunk);
         }
     }
 
@@ -301,26 +319,29 @@ export default class TunerDevice extends events.EventEmitter {
 
         this._stream.removeAllListeners('data');
 
-        if (this._closing === true) {
-            for (let i = 0, l = this._users.length; i < l; i++) {
-                this._users[i]._stream.end();
-                this._users.splice(i, 1);
+        if (this._closing) {
+            for (let user of this._users) {
+                user._stream.end();
+                user._stream.emit('final');
             }
+
+            this._users.length = 0;
         }
     }
 
     private _kill(close: boolean): Promise<void> {
 
-        log.debug('TunerDevice#%d kill...', this._index);
+        return new Promise<void>((resolve, reject) => {
 
-        if (!this._process || !this._process.pid) {
-            return Promise.reject(new Error(util.format('TunerDevice#%d has not process', this._index)));
-        }
+            log.debug('TunerDevice#%d kill...', this._index);
 
-        this._isAvailable = false;
-        this._closing = close;
+            if (!this._process || !this._process.pid) {
+                reject(new Error(util.format('TunerDevice#%d has not process', this._index)));
+                return;
+            }
 
-        return new Promise<void>(resolve => {
+            this._isAvailable = false;
+            this._closing = close;
 
             this.once('release', resolve);
 
@@ -349,7 +370,7 @@ export default class TunerDevice extends events.EventEmitter {
         this._process = null;
         this._stream = null;
 
-        if (this._closing === true) {
+        if (this._closing) {
             this._channel = null;
             this._users = [];
         }

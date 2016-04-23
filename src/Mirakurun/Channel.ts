@@ -31,6 +31,8 @@ export default class Channel {
 
     constructor() {
 
+        _.channel = this;
+
         this._load();
 
         setTimeout(this._epgGatherer.bind(this), 60000);

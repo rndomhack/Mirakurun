@@ -49,12 +49,11 @@ if (process.platform === 'linux') {
     execSync(`ionice -c 1 -n 7 -p ${ process.pid }`);
 }
 
-_.event = new Event();
-_.tuner = new Tuner();
-_.channel = new Channel();
-_.service = new Service();
-_.program = new Program();
-
+new Event();
+new Tuner();
+new Channel();
+new Service();
+new Program();
 new Server();
 
 function setEnv(name: string, value: string) {

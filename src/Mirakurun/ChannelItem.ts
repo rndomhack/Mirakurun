@@ -26,105 +26,39 @@ import ServiceItem from './ServiceItem';
 
 export default class ChannelItem {
 
-    private _name: string;
-    private _type: common.ChannelType;
-    private _channel: string;
-    private _satelite: string;
+    private _removed: boolean = false;
 
-    constructor(config: config.Channel) {
+    constructor(private _config: config.Channel) {
 
-        const pre = _.channel.get(config.type, config.channel);
-        if (pre !== null) {
-            if (config.serviceId) {
-                pre.addService(config.serviceId);
-            }
-
-            return pre;
-        }
-
-        this._name = config.name;
-        this._type = config.type;
-        this._channel = config.channel;
-        this._satelite = config.satelite;
-
-        if (config.serviceId) {
-            this.addService(config.serviceId);
-        }
-
-        setTimeout(() => {
-            if (!config.serviceId && this.getServices().length === 0) {
-                this.serviceScan(true);
-            } else {
-                setTimeout(() => this.serviceScan(false), 180000);
-            }
-        }, 3000);
+        this._init();
 
         _.channel.add(this);
     }
 
     get name(): string {
-        return this._name;
+        return this._config.name;
     }
 
     get type(): common.ChannelType {
-        return this._type;
+        return this._config.type;
     }
 
     get channel(): string {
-        return this._channel;
+        return this._config.channel;
     }
 
     get satelite(): string {
-        return this._satelite;
+        return this._config.satelite;
+    }
+
+    remove(): void {
+        _.channel.remove(this);
+
+        this._removed = true;
     }
 
     export(): config.Channel {
-        return {
-            type: this._type,
-            channel: this._channel,
-            name: this._name,
-            satelite: this._satelite
-        };
-    }
-
-    addService(serviceId: number): void {
-
-        if (!_.service) {
-            process.nextTick(() => this.addService(serviceId));
-            return;
-        }
-
-        if (_.service.findByChannel(this).some(service => service.serviceId === serviceId) === true) {
-            return;
-        }
-
-        log.info('ChannelItem#"%s" serviceId=%d check has queued', this._name, serviceId);
-
-        queue.add(() => {
-            return new Promise((resolve, reject) => {
-
-                log.info('ChannelItem#"%s" serviceId=%d check has started', this._name, serviceId);
-
-                _.tuner.getServices(this)
-                    .then(services => services.find(service => service.serviceId === serviceId))
-                    .then(service => {
-
-                        log.debug('ChannelItem#"%s" serviceId=%d: %s', this._name, serviceId, JSON.stringify(service, null, '  '));
-
-                        new ServiceItem(this, service.networkId, service.serviceId, service.name);
-
-                        resolve();
-                    })
-                    .catch(error => {
-
-                        log.info('ChannelItem#"%s" serviceId=%d check has failed [%s]', this._name, serviceId, error);
-
-                        setTimeout(() => this.addService(serviceId), 180000);
-
-                        reject();
-                    });
-            });
-        });
+        return this._config;
     }
 
     getServices(): ServiceItem[] {
@@ -135,43 +69,117 @@ export default class ChannelItem {
         return _.tuner.getChannelStream(this, user);
     }
 
-    serviceScan(add: boolean): void {
+    addService(serviceId: number): void {
 
-        log.info('ChannelItem#"%s" service scan has queued', this._name);
+        if (this._removed) return;
+
+        if (_.service === void 0 || _.tuner === void 0) {
+            process.nextTick(() => this.addService(serviceId));
+            return;
+        }
+
+        if (_.service.findByChannel(this).some(service => service.serviceId === serviceId)) {
+            return;
+        }
+
+        log.info('ChannelItem#"%s" serviceId=%d check has queued', this._config.name, serviceId);
 
         queue.add(() => {
             return new Promise((resolve, reject) => {
 
-                log.info('ChannelItem#"%s" service scan has started', this._name);
+                log.info('ChannelItem#"%s" serviceId=%d check has started', this._config.name, serviceId);
 
                 _.tuner.getServices(this)
                     .then(services => {
+                        const service = services.find(service => service.serviceId === serviceId);
 
-                        log.debug('ChannelItem#"%s" services: %s', this._name, JSON.stringify(services, null, '  '));
+                        if (service === void 0) {
+                            log.debug('ChannelItem#"%s" serviceId=%d service is not found', this._config.name, serviceId);
 
-                        services.forEach(service => {
+                            resolve();
+                            return;
+                        }
 
-                            const item = _.service.get(service.networkId, service.serviceId);
-                            if (item !== null) {
-                                item.name = service.name;
-                            } else if (add === true) {
-                                new ServiceItem(this, service.networkId, service.serviceId, service.name);
-                            }
-                        });
+                        log.debug('ChannelItem#"%s" serviceId=%d: %s', this._config.name, serviceId, JSON.stringify(service, null, '  '));
 
-                        log.info('ChannelItem#"%s" service scan has finished', this._name);
+                        new ServiceItem(service, this);
 
                         resolve();
                     })
                     .catch(error => {
 
-                        log.error('ChannelItem#"%s" service scan has failed [%s]', this._name, error);
+                        log.info('ChannelItem#"%s" serviceId=%d check has failed [%s]', this._config.name, serviceId, error);
 
-                        setTimeout(() => this.serviceScan(add), add ? 180000 : 3600000);
+                        setTimeout(() => this.addService(serviceId), 60 * 1000);
 
                         reject();
                     });
             });
         });
+    }
+
+    serviceScan(add: boolean): void {
+
+        if (this._removed) return;
+
+        log.info('ChannelItem#"%s" service scan has queued', this._config.name);
+
+        queue.add(() => {
+            return new Promise((resolve, reject) => {
+
+                log.info('ChannelItem#"%s" service scan has started', this._config.name);
+
+                _.tuner.getServices(this)
+                    .then(services => {
+
+                        log.debug('ChannelItem#"%s" services: %s', this._config.name, JSON.stringify(services, null, '  '));
+
+                        services.forEach(service => {
+
+                            if (_.service.exists(service.networkId, service.serviceId)) {
+                                const item = _.service.get(service.networkId, service.serviceId);
+
+                                item.update(service);
+                            } else if (add) {
+                                new ServiceItem(service, this);
+                            }
+                        });
+
+                        _.service.findByChannel(this).forEach(item => {
+                            if (services.some(service => service.id === item.id)) return;
+
+                            item.remove();
+                        });
+
+                        log.info('ChannelItem#"%s" service scan has finished', this._config.name);
+
+                        resolve();
+                    })
+                    .catch(error => {
+
+                        log.error('ChannelItem#"%s" service scan has failed [%s]', this._config.name, error);
+
+                        setTimeout(() => this.serviceScan(add), add ? 60 * 1000 : 10 * 60 * 1000);
+
+                        reject();
+                    });
+            });
+        });
+    }
+
+    private _init(): void {
+
+        if (this._removed) return;
+
+        if (_.service === void 0) {
+            process.nextTick(() => this._init());
+            return;
+        }
+
+        if (this._config.serviceId === void 0 && this.getServices().length === 0) {
+            process.nextTick(() => this.serviceScan(true));
+        } else {
+            process.nextTick(() => this.serviceScan(false));
+        }
     }
 }

@@ -28,6 +28,7 @@ import Tuner from './Tuner';
 export default class Channel {
 
     private _items: ChannelItem[] = [];
+    private _epgGatherInterval: number = 60 * 60 * 1000;
 
     constructor() {
 
@@ -107,11 +108,25 @@ export default class Channel {
                 return;
             }
 
-            if (Tuner.typeExists(channel.type) === false) {
+            if (_.tuner.typeExists(channel.type) === false) {
                 return;
             }
 
-            new ChannelItem(channel);
+            if (this.exists(channel.type, channel.channel)) {
+                const item = this.get(channel.type, channel.channel);
+
+                if (channel.serviceId !== void 0) {
+                    item.addService(channel.serviceId);
+                }
+            } else {
+                const item = new ChannelItem(channel);
+
+                if (channel.serviceId !== void 0) {
+                    item.addService(channel.serviceId);
+                }
+
+                this.add(item);
+            }
         });
     }
 
@@ -134,7 +149,7 @@ export default class Channel {
 
                         log.info('Network#%d EPG gathering has started', networkId);
 
-                        Tuner.getEPG(services[0].channel, 600)
+                        _.tuner.getEPG(services[0].channel)
                             .then(() => {
                                 log.info('Network#%d EPG gathering has finished', networkId);
                                 resolve();
@@ -148,7 +163,7 @@ export default class Channel {
             });
 
             queue.add(() => {
-                setTimeout(this._epgGatherer.bind(this), 900000);
+                setTimeout(this._epgGatherer.bind(this), this._epgGatherInterval);
                 return Promise.resolve();
             });
 

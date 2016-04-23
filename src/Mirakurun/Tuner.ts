@@ -175,7 +175,18 @@ export default class Tuner {
                         if (services === null) {
                             reject(new Error('stream has closed before get services'));
                         } else {
-                            resolve(services);
+                            resolve(services.map(service => {
+                                return {
+                                    id: ServiceItem.createId(service.networkId, service.serviceId),
+                                    serviceId: service.serviceId,
+                                    networkId: service.networkId,
+                                    name: '',
+                                    channel: {
+                                        type: channel.type,
+                                        channel: channel.channel
+                                    }
+                                }
+                            }));
                         }
                     });
                 });

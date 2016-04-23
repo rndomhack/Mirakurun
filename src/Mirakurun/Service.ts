@@ -60,8 +60,11 @@ export default class Service {
     get(id: number, serviceId?: number) {
 
         return this._items.find(item => {
-            if (item.id !== id) return false;
-            if (serviceId !== void 0 && item.serviceId !== serviceId) return false;
+            if (serviceId === void 0) {
+                if (item.id !== id) return false;
+            } else {
+                if (item.networkId !== id && item.serviceId !== serviceId) return false;
+            }
 
             return true;
         }) || null;
@@ -76,8 +79,11 @@ export default class Service {
     exists(id: number, serviceId?: number) {
 
         return this._items.some(item => {
-            if (item.id !== id) return false;
-            if (serviceId !== void 0 && item.serviceId !== serviceId) return false;
+            if (serviceId === void 0) {
+                if (item.id !== id) return false;
+            } else {
+                if (item.networkId !== id && item.serviceId !== serviceId) return false;
+            }
 
             return true;
         });
@@ -116,7 +122,12 @@ export default class Service {
                 return;
             }
 
-            new ServiceItem(channelItem, service.networkId, service.serviceId, service.name);
+            if (this.exists(service.networkId, service.serviceId)) {
+                dropped = true;
+                return;
+            }
+
+            new ServiceItem(service, channelItem);
         });
 
         if (dropped === true) {

@@ -24,61 +24,55 @@ import ChannelItem from './ChannelItem';
 
 export default class ServiceItem {
 
-    private _id: number;
+    private _removed: boolean = false;
 
-    constructor(private _channel: ChannelItem, private _networkId: number, private _serviceId: number, private _name?: string) {
-
-        this._id = ServiceItem.createId(_networkId, _serviceId);
-
-        if (_.service.exists(this._id) === true) {
-            return this;
-        }
+    constructor(private _data: db.Service, private _channel: ChannelItem) {
 
         _.service.add(this);
+
         this._updated();
     }
 
     get id(): number {
-        return this._id;
+        return this._data.id;
     }
 
     get networkId(): number {
-        return this._networkId;
+        return this._data.networkId;
     }
 
     get serviceId(): number {
-        return this._serviceId;
+        return this._data.serviceId;
     }
 
     get name(): string {
-        return this._name || '';
+        return this._data.name;
     }
 
     get channel(): ChannelItem {
         return this._channel;
     }
 
-    set name(name: string) {
+    remove(): void {
+        _.service.remove(this);
+        _.service.save();
 
-        if (this._name !== name) {
-            this._name = name;
+        this._removed = true;
+    }
+
+    update(data: db.Service) {
+
+        if (this._data.name !== data.name) {
+            this._data.name = data.name;
 
             _.service.save();
+
             this._updated();
         }
     }
 
     export(): db.Service {
-        return {
-            id: this._id,
-            serviceId: this._serviceId,
-            networkId: this._networkId,
-            name: this._name || '',
-            channel: {
-                type: this._channel.type,
-                channel: this._channel.channel
-            }
-        };
+        return this._data;
     }
 
     getStream(user: common.User): Promise<stream.Readable> {

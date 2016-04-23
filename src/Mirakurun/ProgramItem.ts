@@ -25,6 +25,8 @@ import ServiceItem from './ServiceItem';
 
 export default class ProgramItem {
 
+    private _removed: boolean = false;
+
     constructor(private _data: db.Program) {
 
         if (_.program.exists(_data.id) === true) {
@@ -34,6 +36,7 @@ export default class ProgramItem {
         }
 
         _.program.add(this);
+
         this._updated();
     }
 
@@ -49,6 +52,13 @@ export default class ProgramItem {
         return this._data;
     }
 
+    remove(): void {
+        _.program.remove(this);
+        _.program.save();
+
+        this._removed = true;
+    }
+
     update(data: db.Program): void {
 
         /* if (data.id !== this._data.id) {
@@ -58,7 +68,7 @@ export default class ProgramItem {
             }
         } */
 
-        if (common.updateObject(this._data, data) === true) {
+        if (common.updateObject(this._data, data)) {
             _.program.save();
             this._updated();
         }
@@ -66,10 +76,6 @@ export default class ProgramItem {
 
     getStream(user: common.User): Promise<stream.Readable> {
         return _.tuner.getProgramStream(this, user);
-    }
-
-    remove(): void {
-        _.program.remove(this);
     }
 
     private _updated(): void {

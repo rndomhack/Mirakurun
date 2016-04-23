@@ -20,7 +20,6 @@ import * as stream from 'stream';
 import * as common from './common';
 import _ from './_';
 import db from './db';
-import Event from './Event';
 import ChannelItem from './ChannelItem';
 import ServiceItem from './ServiceItem';
 
@@ -74,6 +73,6 @@ export default class ProgramItem {
     }
 
     private _updated(): void {
-        Event.emit('program', this._data)
+        _.event.emit('program', this._data);
     }
 }

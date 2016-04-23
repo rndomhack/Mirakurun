@@ -35,11 +35,7 @@ export default class Channel {
 
         this._load();
 
-        setTimeout(this._epgGatherer.bind(this), 60000);
-    }
-
-    get items(): ChannelItem[] {
-        return this._items;
+        setTimeout(this._epgGatherer.bind(this), 60 * 1000);
     }
 
     add(item: ChannelItem): void {
@@ -49,30 +45,29 @@ export default class Channel {
         }
     }
 
-    get(type: common.ChannelType, channel: string): ChannelItem {
+    remove(item: ChannelItem): void {
 
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].channel === channel && this._items[i].type === type) {
-                return this._items[i];
-            }
+        const index = this._items.indexOf(item);
+
+        if (index !== -1) {
+            this._items.splice(index, 1);
         }
+    }
 
-        return null;
+    get(type: common.ChannelType, channel: string): ChannelItem {
+        return this._items.find(item => item.channel === channel && item.type === type) || null;
+    }
+
+    all(): ChannelItem[] {
+        return this._items;
+    }
+
+    exists(type: common.ChannelType, channel: string): boolean {
+        return this._items.some(item => item.channel === channel && item.type === type);
     }
 
     findByType(type: common.ChannelType): ChannelItem[] {
-
-        const items = [];
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].type === type) {
-                items.push(this._items[i]);
-            }
-        }
-
-        return items;
+        return this._items.filter(item => item.type === type);
     }
 
     private _load(): void {
@@ -124,7 +119,7 @@ export default class Channel {
 
         queue.add(() => {
 
-            const networkIds = [...new Set(_.service.items.map(item => item.networkId))];
+            const networkIds = [...new Set(_.service.all().map(item => item.networkId))];
 
             networkIds.forEach(networkId => {
 
@@ -174,6 +169,6 @@ export default class Channel {
     }
 
     static all(): ChannelItem[] {
-        return _.channel.items;
+        return _.channel.all();
     }
 }

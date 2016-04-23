@@ -20,7 +20,6 @@ import * as stream from 'stream';
 import * as common from './common';
 import _ from './_';
 import db from './db';
-import Event from './Event';
 import ChannelItem from './ChannelItem';
 
 export default class ServiceItem {
@@ -87,7 +86,7 @@ export default class ServiceItem {
     }
 
     private _updated(): void {
-        Event.emit('service', this.export())
+        _.event.emit('service', this.export());
     }
 
     static createId(networkId: number, serviceId: number): number {

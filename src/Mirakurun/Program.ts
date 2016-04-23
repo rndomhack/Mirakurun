@@ -38,10 +38,6 @@ export default class Program {
         setInterval(this._gc.bind(this), 1000 * 60 * 15);
     }
 
-    get items(): ProgramItem[] {
-        return this._items;
-    }
-
     add(item: ProgramItem): void {
 
         if (this.get(item.id) === null) {
@@ -49,18 +45,6 @@ export default class Program {
 
             this.save();
         }
-    }
-
-    get(id: number): ProgramItem {
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].id === id) {
-                return this._items[i];
-            }
-        }
-
-        return null;
     }
 
     remove(item: ProgramItem): void {
@@ -74,41 +58,29 @@ export default class Program {
         }
     }
 
+    get(id: number): ProgramItem {
+        return this._items.find(item => item.data.id === id) || null;
+    }
+
+    all(): ProgramItem[] {
+        return this._items;
+    }
+
     exists(id: number): boolean {
-        return this.get(id) !== null;
+        return this._items.some(item => item.data.id === id);
     }
 
     findByServiceId(serviceId: number): ProgramItem[] {
-
-        const items = [];
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].data.serviceId === serviceId) {
-                items.push(this._items[i]);
-            }
-        }
-
-        return items;
+        return this._items.filter(item => item.data.serviceId === serviceId);
     }
 
     findByServiceItemId(id: number): ProgramItem[] {
-
-        const items = [];
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].id === id) {
-                items.push(this._items[i]);
-            }
-        }
-
-        return items;
+        return this._items.filter(item => item.data.id === id);
     }
 
     save(): void {
         clearTimeout(this._saveTimerId);
-        this._saveTimerId = setTimeout(() => this._save(), 3000);
+        this._saveTimerId = setTimeout(() => this._save(), 1000);
     }
 
     private _load(): void {
@@ -120,7 +92,7 @@ export default class Program {
 
         db.loadPrograms().forEach(program => {
 
-            if (typeof program.networkId === 'undefined') {
+            if (program.networkId === void 0) {
                 dropped = true;
                 return;
             }
@@ -182,7 +154,7 @@ export default class Program {
     }
 
     static all(): ProgramItem[] {
-        return _.program.items;
+        return _.program.all();
     }
 
     static save(): void {

@@ -35,10 +35,6 @@ export default class Service {
         this._load();
     }
 
-    get items(): ServiceItem[] {
-        return this._items;
-    }
-
     add(item: ServiceItem): void {
 
         if (this.get(item.id) === null) {
@@ -48,66 +44,56 @@ export default class Service {
         }
     }
 
+    remove(item: ServiceItem): void {
+
+        const index = this._items.indexOf(item);
+
+        if (index !== -1) {
+            this._items.splice(index, 1);
+
+            this.save();
+        }
+    }
+
     get(id: number): ServiceItem;
     get(networkId: number, serviceId: number): ServiceItem;
     get(id: number, serviceId?: number) {
 
-        let i = 0, l = this._items.length;
+        return this._items.find(item => {
+            if (item.id !== id) return false;
+            if (serviceId !== void 0 && item.serviceId !== serviceId) return false;
 
-        if (typeof serviceId === 'undefined') {
-            for (; i < l; i++) {
-                if (this._items[i].id === id) {
-                    return this._items[i];
-                }
-            }
-        } else {
-            for (; i < l; i++) {
-                if (this._items[i].networkId === id && this._items[i].serviceId === serviceId) {
-                    return this._items[i];
-                }
-            }
-        }
+            return true;
+        }) || null;
+    }
 
-        return null;
+    all(): ServiceItem[] {
+        return this._items;
     }
 
     exists(id: number): boolean;
     exists(networkId: number, serviceId: number): boolean;
     exists(id: number, serviceId?: number) {
-        return this.get(id, serviceId) !== null;
+
+        return this._items.some(item => {
+            if (item.id !== id) return false;
+            if (serviceId !== void 0 && item.serviceId !== serviceId) return false;
+
+            return true;
+        });
     }
 
     findByChannel(channel: ChannelItem): ServiceItem[] {
-
-        const items = [];
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].channel === channel) {
-                items.push(this._items[i]);
-            }
-        }
-
-        return items;
+        return this._items.filter(item => item.channel === channel);
     }
 
     findByNetworkId(networkId: number): ServiceItem[] {
-
-        const items = [];
-
-        let i, l = this._items.length;
-        for (i = 0; i < l; i++) {
-            if (this._items[i].networkId === networkId) {
-                items.push(this._items[i]);
-            }
-        }
-
-        return items;
+        return this._items.filter(item => item.networkId === networkId);
     }
 
     save(): void {
         clearTimeout(this._saveTimerId);
-        this._saveTimerId = setTimeout(() => this._save(), 500);
+        this._saveTimerId = setTimeout(() => this._save(), 1000);
     }
 
     private _load(): void {
@@ -125,7 +111,7 @@ export default class Service {
                 return;
             }
 
-            if (typeof service.networkId === 'undefined' || typeof service.serviceId === 'undefined') {
+            if (service.networkId === void 0 || service.serviceId === void 0) {
                 dropped = true;
                 return;
             }
@@ -172,7 +158,7 @@ export default class Service {
     }
 
     static all(): ServiceItem[] {
-        return _.service.items;
+        return _.service.all();
     }
 
     static save(): void {

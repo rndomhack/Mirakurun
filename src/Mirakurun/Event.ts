@@ -25,16 +25,16 @@ interface EventMessage {
     time: number;
 }
 
-export default class Event extends EventEmitter {
+export default class Event {
 
+    private _eventEmitter: EventEmitter = new EventEmitter();
     private _log: EventMessage[] = [];
 
     constructor() {
-        super();
-
+        
         _.event = this;
 
-        this.on('event', message => {
+        this._eventEmitter.on('event', message => {
 
             this._log.unshift(message);
 
@@ -49,19 +49,19 @@ export default class Event extends EventEmitter {
         return this._log;
     }
 
-    static on(listener: (message: EventMessage) => void): void {
-        _.event.on('event', listener);
+    on(listener: (message: EventMessage) => void): void {
+        this._eventEmitter.on('event', listener);
     }
 
-    static once(listener: (message: EventMessage) => void): void {
-        _.event.once('event', listener);
+    once(listener: (message: EventMessage) => void): void {
+        this._eventEmitter.once('event', listener);
     }
 
-    static removeListener(listener: Function): void {
-        _.event.removeListener('event', listener);
+    removeListener(listener: Function): void {
+        this._eventEmitter.removeListener('event', listener);
     }
 
-    static emit(resource: string, data: any): boolean {
+    emit(resource: string, data: any): boolean {
 
         const message: EventMessage = {
             resource: resource,
@@ -69,6 +69,6 @@ export default class Event extends EventEmitter {
             time: Date.now()
         };
 
-        return _.event.emit('event', message);
+        return this._eventEmitter.emit('event', message);
     }
 }

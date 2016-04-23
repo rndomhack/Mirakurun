@@ -36,10 +36,10 @@ export default class Channel {
 
         this._load();
 
-        this._epgGathererDate = new Date(Date.now() + 5 * 60 * 1000);
+        this._epgGathererDate = new Date(Date.now() + 60000);
         _.power.addResume(this._epgGathererDate);
 
-        setTimeout(this._epgGatherer.bind(this), 5 * 60 * 1000);
+        setTimeout(this._epgGatherer.bind(this), 60000);
     }
 
     get items(): ChannelItem[] {

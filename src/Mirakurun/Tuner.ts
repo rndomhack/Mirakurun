@@ -45,7 +45,7 @@ export default class Tuner {
 
     constructor() {
 
-        _.tuner = this;
+        this._load();
     }
 
     get devices(): TunerDevice[] {

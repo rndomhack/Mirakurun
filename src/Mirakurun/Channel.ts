@@ -28,6 +28,7 @@ import Tuner from './Tuner';
 export default class Channel {
 
     private _items: ChannelItem[] = [];
+    private _epgGathererDate: Date = null;
 
     constructor() {
 
@@ -35,7 +36,10 @@ export default class Channel {
 
         this._load();
 
-        setTimeout(this._epgGatherer.bind(this), 60000);
+        this._epgGathererDate = new Date(Date.now() + 5 * 60 * 1000);
+        _.power.addResume(this._epgGathererDate);
+
+        setTimeout(this._epgGatherer.bind(this), 5 * 60 * 1000);
     }
 
     get items(): ChannelItem[] {
@@ -124,6 +128,9 @@ export default class Channel {
 
         queue.add(() => {
 
+            _.power.removeResume(this._epgGathererDate);
+            this._epgGathererDate = null;
+
             const networkIds = [...new Set(_.service.items.map(item => item.networkId))];
 
             networkIds.forEach(networkId => {
@@ -153,7 +160,11 @@ export default class Channel {
             });
 
             queue.add(() => {
+                this._epgGathererDate = new Date(Date.now() + 900000);
+                _.power.addResume(this._epgGathererDate);
+
                 setTimeout(this._epgGatherer.bind(this), 900000);
+
                 return Promise.resolve();
             });
 

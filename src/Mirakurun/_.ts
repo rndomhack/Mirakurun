@@ -15,20 +15,20 @@
 */
 'use strict';
 
+import Power from './Power';
 import Event from './Event';
 import Tuner from './Tuner';
 import Channel from './Channel';
 import Service from './Service';
 import Program from './Program';
-import Power from './Power';
 
 interface _ {
+    power?: Power;
     event?: Event;
     tuner?: Tuner;
     channel?: Channel;
     service?: Service;
     program?: Program;
-    power?: Power;
 }
 
 const _: _ = {};

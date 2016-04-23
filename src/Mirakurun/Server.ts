@@ -129,12 +129,12 @@ class Server {
             this._servers.push(server);
         });
 
+        new Power();
         new Event();
         new Tuner();
         new Channel();
         new Service();
         new Program();
-        new Power();
     }
 }
 

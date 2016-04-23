@@ -139,7 +139,8 @@ export default class Power {
             if (process.platform === 'win32') {
                 if (this._resumeDate === recent) return;
 
-                this._resume = new Resume(recent);
+                this._resume = new Resume({time: recent});
+                this._resume.start();
 
                 this._resume.on("end", () => {
                     this._resumeSet.delete(recent);

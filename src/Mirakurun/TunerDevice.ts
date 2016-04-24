@@ -105,16 +105,15 @@ export default class TunerDevice extends events.EventEmitter {
 
     getPriority(): number {
 
-        let ret = -2;
+        let priority = -2;
 
-        let i, l = this._users.length;
-        for (i = 0; i < l; i++) {
-            if (this._users[i].priority > ret) {
-                ret = this._users[i].priority;
+        for (let user of this._users) {
+            if (user.priority > priority) {
+                priority = user.priority;
             }
         }
 
-        return ret;
+        return priority;
     }
 
     export(): Status {
@@ -152,7 +151,7 @@ export default class TunerDevice extends events.EventEmitter {
                 stream.once('close', () => this.endStream(user));
             };
 
-            if (!channel) {
+            if (typeof channel === 'undefined') {
                 if (!this._stream) {
                     reject(new Error(util.format('TunerDevice#%d has not stream', this._index)));
                     return;
@@ -168,7 +167,7 @@ export default class TunerDevice extends events.EventEmitter {
                 return;
             }
 
-            if (this._stream) {
+            if (this._stream !== null) {
                 if (channel.channel === this._channel.channel) {
                     streaming();
                     resolve();
@@ -206,6 +205,7 @@ export default class TunerDevice extends events.EventEmitter {
             _user._stream.end();
             this._users.splice(i, 1);
             stream = _user._stream;
+
             return true;
         });
 
@@ -246,7 +246,7 @@ export default class TunerDevice extends events.EventEmitter {
         this._command = cmd;
         this._channel = ch;
 
-        if (this._config.dvbDevicePath) {
+        if (typeof this._config.dvbDevicePath !== 'undefined') {
             const cat = child_process.spawn('cat', [this._config.dvbDevicePath]);
 
             cat.once('error', (err) => {

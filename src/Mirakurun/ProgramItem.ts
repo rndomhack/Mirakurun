@@ -61,7 +61,7 @@ export default class ProgramItem {
 
     update(data: db.Program): void {
 
-        if (common.updateObject(this._data, data)) {
+        if (common.updateObject(this._data, data) === true) {
             _.program.save();
 
             this._updated();

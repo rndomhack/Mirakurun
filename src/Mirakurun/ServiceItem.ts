@@ -62,17 +62,7 @@ export default class ServiceItem {
 
     update(data: db.Service) {
 
-        if (data.id !== this._data.id) {
-            if (_.service.exists(data.id)) {
-                _.service.remove(this);
-                _.service.save();
-
-                this._removed = true;
-                return;
-            }
-        }
-
-        if (common.updateObject(this._data, data)) {
+        if (common.updateObject(this._data, data) === true) {
             _.service.save();
 
             this._updated();

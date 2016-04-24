@@ -92,7 +92,7 @@ export default class Program {
 
         db.loadPrograms().forEach(program => {
 
-            if (program.networkId === void 0) {
+            if (typeof program.networkId === 'undefined') {
                 dropped = true;
                 return;
             }

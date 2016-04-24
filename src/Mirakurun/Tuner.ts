@@ -204,7 +204,7 @@ export default class Tuner {
 
         tuners.forEach((tuner, i) => {
 
-            if (!tuner.name || !tuner.types || !tuner.command) {
+            if (typeof tuner.name === 'undefined' || typeof tuner.types === 'undefined' || typeof tuner.command === 'undefined') {
                 log.error('missing required property in tuner#%s configuration', i);
                 return;
             }
@@ -225,7 +225,7 @@ export default class Tuner {
                 return;
             }
 
-            if (tuner.dvbDevicePath && typeof tuner.dvbDevicePath !== 'string') {
+            if (typeof tuner.dvbDevicePath !== 'undefined' && typeof tuner.dvbDevicePath !== 'string') {
                 log.error('invalid type of property `dvbDevicePath` in tuner#%s configuration', i);
                 return;
             }

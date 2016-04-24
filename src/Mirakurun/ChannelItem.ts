@@ -73,7 +73,7 @@ export default class ChannelItem {
 
         if (this._removed) return;
 
-        if (_.service === void 0 || _.tuner === void 0) {
+        if (typeof _.service === 'undefined' || typeof _.tuner === 'undefined') {
             process.nextTick(() => this.addService(serviceId));
             return;
         }
@@ -93,7 +93,7 @@ export default class ChannelItem {
                     .then(services => {
                         const service = services.find(service => service.serviceId === serviceId);
 
-                        if (service === void 0) {
+                        if (typeof service === 'undefined') {
                             log.debug('ChannelItem#"%s" serviceId=%d service is not found', this._config.name, serviceId);
 
                             resolve();
@@ -136,7 +136,7 @@ export default class ChannelItem {
 
                         services.forEach(service => {
 
-                            if (_.service.exists(service.networkId, service.serviceId)) {
+                            if (_.service.exists(service.networkId, service.serviceId) === true) {
                                 const item = _.service.get(service.networkId, service.serviceId);
 
                                 item.update(service);
@@ -176,7 +176,7 @@ export default class ChannelItem {
             return;
         }
 
-        if (this._config.serviceId === void 0 && this.getServices().length === 0) {
+        if (typeof this._config.serviceId === 'undefined' && this.getServices().length === 0) {
             process.nextTick(() => this.serviceScan(true));
         } else {
             process.nextTick(() => this.serviceScan(false));

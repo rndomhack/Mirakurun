@@ -60,7 +60,7 @@ export default class Service {
     get(id: number, serviceId?: number) {
 
         return this._items.find(item => {
-            if (serviceId === void 0) {
+            if (typeof serviceId === 'undefined') {
                 if (item.id !== id) return false;
             } else {
                 if (item.networkId !== id || item.serviceId !== serviceId) return false;
@@ -79,7 +79,7 @@ export default class Service {
     exists(id: number, serviceId?: number) {
 
         return this._items.some(item => {
-            if (serviceId === void 0) {
+            if (typeof serviceId === 'undefined') {
                 if (item.id !== id) return false;
             } else {
                 if (item.networkId !== id || item.serviceId !== serviceId) return false;
@@ -110,17 +110,17 @@ export default class Service {
 
         db.loadServices().forEach(service => {
 
-            if (!_.channel.exists(service.channel.type, service.channel.channel)) {
+            if (_.channel.exists(service.channel.type, service.channel.channel) === false) {
                 dropped = true;
                 return;
             }
 
-            if (service.networkId === void 0 || service.serviceId === void 0) {
+            if (typeof service.networkId === 'undefined' || typeof service.serviceId === 'undefined') {
                 dropped = true;
                 return;
             }
 
-            if (this.exists(service.networkId, service.serviceId)) {
+            if (this.exists(service.networkId, service.serviceId) === true) {
                 dropped = true;
                 return;
             }

@@ -76,14 +76,12 @@ export default class TSFilter extends stream.Duplex {
 
     // aribts
     private _parser: stream.Transform = new aribts.TsStream();
-    //private _tsUtil = new aribts.TsUtil();
 
     // buffer
-    private _packet: Buffer = new Buffer(PACKET_SIZE);
-    private _offset: number = -1;
+    private _remain: Buffer = null;
     private _buffer: Buffer[] = [];
     private _parses: Buffer[] = [];
-    private _patsec: Buffer = new Buffer(20);
+    private _patsec: Buffer = null;
 
     // state
     private _closed: boolean = false;
@@ -91,7 +89,6 @@ export default class TSFilter extends stream.Duplex {
     private _providePids: number[] = null;// `null` to provides all
     private _parsePids: number[] = [];
     private _tsid: number = -1;
-    private _patCRC: Buffer = new Buffer(0);
     private _serviceIds: number[] = [];
     private _services: any[] = [];
     private _parseServiceIds: number[] = [];
@@ -100,6 +97,7 @@ export default class TSFilter extends stream.Duplex {
     private _streamTime: number = null;
     private _epgReady: boolean = false;
     private _epgState: { [networkId: number]: { [serviceId: number]: BasicExtState } } = {};
+    private _versions: Object = {};
 
     // stream options
     private highWaterMark: number = 1024 * 1024 * 16;
@@ -175,84 +173,75 @@ export default class TSFilter extends stream.Duplex {
         // stringent safety measure
         if (this._readableState.length > this.highWaterMark) {
             log.error('TSFilter is closing because overflowing the buffer...');
-            return this._close();
+            this._close();
+            return;
         }
 
-        let offset = 0;
-        const length = chunk.length;
+        let i = 0;
 
-        if (this._offset > 0) {
-            if (chunk.length >= PACKET_SIZE - this._offset) {
-                chunk.copy(this._packet, this._offset, 0, PACKET_SIZE - this._offset);
-                this._processPacket(this._packet, true);
-                offset = PACKET_SIZE - this._offset;
-                this._offset = 0;
+        if (this._remain !== null) {
+            if (chunk.length >= PACKET_SIZE - this._remain.length) {
+                this._processPacket(Buffer.concat([this._remain, chunk.slice(0, PACKET_SIZE - this._remain.length)]));
+                i = PACKET_SIZE - this._remain.length;
             } else {
-                chunk.copy(this._packet, this._offset);
-                this._offset += chunk.length;
+                this._remain = Buffer.concat([this._remain, chunk]);
 
                 // chunk drained
                 callback();
                 return;
             }
-        } else {
-            for (; offset < length; offset++) {
-                // sync byte (0x47) searching
-                if (chunk[offset] === 71) {
-                    this._offset = 0;
-                    break;
-                }
-            }
         }
 
-        for (; offset < length; offset += PACKET_SIZE) {
-            // sync byte (0x47) verifying
-            if (chunk[offset] !== 71) {
-                offset -= PACKET_SIZE - 1;
-                continue;
-            }
+        // find sync_byte
+        for (; chunk.length - i >= PACKET_SIZE; i += PACKET_SIZE) {
+            if (chunk[0] !== 0x47 && (i = chunk.indexOf(0x47, i)) === -1) break;
 
-            if (length - offset >= PACKET_SIZE) {
-                this._processPacket(chunk.slice(offset, offset + PACKET_SIZE), false);
-                this._offset = 0;
-            } else {
-                chunk.copy(this._packet, 0, offset);
-                this._offset = length - offset;
-            }
+            this._processPacket(chunk.slice(i, i + PACKET_SIZE));
         }
+
+        this._remain = i !== -1 ? chunk.slice(i) : null;
 
         if (this._buffer.length !== 0) {
             this.push(Buffer.concat(this._buffer));
-            this._buffer = [];
+            this._buffer.length = 0;
         }
 
         if (this._parses.length !== 0) {
             this._parser.write(Buffer.concat(this._parses));
-            this._parses = [];
+            this._parses.length = 0;
         }
 
         callback();
     }
 
-    private _processPacket(packet: Buffer, mustCopy: boolean): void {
+    private _processPacket(packet: Buffer): void {
 
         const pid = packet.readUInt16BE(1) & 0x1FFF;
 
-        // NULL (0x1FFF)
-        if (pid === 8191) {
+        // ignore NULL packet (pid = 0x1FFF)
+        if (pid === 0x1FFF) {
             return;
         }
 
-        if (mustCopy === true) {
-            packet = new Buffer(packet);
+        // parse packet
+        if (pid === 0) {
+            this._parser.write(packet);
+        } else if ((pid === 0x12 && (this._parseEIT || this._provideEventId !== null)) || pid === 0x14 || this._parsePids.indexOf(pid) !== -1) {
+            this._parses.push(packet);
         }
 
-        // parse
-        if (pid === 0 && this._patCRC.compare(packet.slice(packet[7] + 4, packet[7] + 8))) {
-            this._patCRC = packet.slice(packet[7] + 4, packet[7] + 8);
-            this._parses.push(packet);
-        } else if ((pid === 0x12 && (this._parseEIT === true || this._provideEventId !== null)) || pid === 0x14 || this._parsePids.indexOf(pid) !== -1) {
-            this._parses.push(packet);
+        // rewrite packet
+        if (pid === 0) {
+            if (this._patsec !== null) {
+                const pat = new Buffer(packet);
+
+                this._patsec.copy(pat, 5, 0);
+                pat.fill(0xFF, 5 + this._patsec.length);
+
+                packet = pat;
+            } else {
+                packet = null;
+            }
         }
 
         if (this._ready === false) {
@@ -261,13 +250,8 @@ export default class TSFilter extends stream.Duplex {
         if (this._providePids !== null && this._providePids.indexOf(pid) === -1) {
             return;
         }
-
-        // PAT (0) rewriting
-        if (pid === 0 && this._pmtPid !== -1) {
-            if (mustCopy === false) {
-                packet = new Buffer(packet);
-            }
-            this._patsec.copy(packet, 5, 0);
+        if (packet === null) {
+            return;
         }
 
         this._buffer.push(packet);
@@ -275,35 +259,37 @@ export default class TSFilter extends stream.Duplex {
 
     private _onPAT(pid, data): void {
 
+        if (this._versions.hasOwnProperty(pid) && data.version_number === this._versions[pid]) {
+            return;
+        }
+
         this._tsid = data.transport_stream_id;
         this._serviceIds = [];
         this._parseServiceIds = [];
 
-        let i = 0, l = data.programs.length, id: number, item: ServiceItem;
-        for (; i < l; i++) {
-            id = data.programs[i].program_number;
-
-            if (id === 0) {
-                log.debug('TSFilter detected NIT PID=%d', data.programs[i].network_PID);
+        for (let program of data.programs) {
+            if (program.program_number === 0) {
+                log.debug('TSFilter detected NIT PID=%d', program.network_PID);
                 continue;
             }
 
-            this._serviceIds.push(id);
-            if (this._targetNetworkId === null) {
-                item = null;
-            } else {
-                item = _.service.get(this._targetNetworkId, id);
+            this._serviceIds.push(program.program_number);
+
+            let item: ServiceItem = null;
+
+            if (this._targetNetworkId !== null) {
+                item = _.service.get(this._targetNetworkId, program.program_number);
             }
 
             log.debug(
                 'TSFilter detected PMT PID=%d as serviceId=%d (%s)',
-                data.programs[i].program_map_PID, id, item ? item.name : 'unregistered'
+                program.program_map_PID, program.program_number, item !== null ? item.name : 'unregistered'
             );
 
             // detect PMT PID by specific service id
-            if (this._provideServiceId === id) {
-                if (this._pmtPid !== data.programs[i].program_map_PID) {
-                    this._pmtPid = data.programs[i].program_map_PID;
+            if (this._provideServiceId === program.program_number) {
+                if (this._pmtPid !== program.program_map_PID) {
+                    this._pmtPid = program.program_map_PID;
 
                     if (this._providePids.indexOf(this._pmtPid) === -1) {
                         this._providePids.push(this._pmtPid);
@@ -311,6 +297,9 @@ export default class TSFilter extends stream.Duplex {
                     if (this._parsePids.indexOf(this._pmtPid) === -1) {
                         this._parsePids.push(this._pmtPid);
                     }
+
+                    // reset PAT section
+                    this._patsec = new Buffer(20);
 
                     // edit PAT section
                     data._raw.copy(this._patsec, 0, 0, 8);
@@ -326,18 +315,18 @@ export default class TSFilter extends stream.Duplex {
                     this._patsec[11] = 16;
 
                     // program_number
-                    this._patsec[12] = id >> 8;
-                    this._patsec[13] = id & 255;
+                    this._patsec[12] = program.program_number >> 8;
+                    this._patsec[13] = program.program_number & 255;
                     // program_map_PID
                     this._patsec[14] = (this._pmtPid >> 8) + 224;
                     this._patsec[15] = this._pmtPid & 255
 
                     // calculate CRC32
-                    this._patsec.writeInt32BE(calcCRC32(this._patsec.slice(0, 16)), 16);
+                    this._patsec.writeInt32BE(TSFilter.calcCRC32(this._patsec.slice(0, 16)), 16);
                 }
             }
 
-            if (this._parseEIT === true && item) {
+            if (this._parseEIT === true && item !== null) {
                 _.service.findByNetworkId(this._targetNetworkId).forEach(service => {
                     if (this._parseServiceIds.indexOf(service.serviceId) === -1) {
                         this._parseServiceIds.push(service.serviceId);
@@ -349,13 +338,19 @@ export default class TSFilter extends stream.Duplex {
         }
 
         if (this._parseSDT === true) {
-            if (this._parsePids.indexOf(17) === -1) {
-                this._parsePids.push(17);
+            if (this._parsePids.indexOf(0x11) === -1) {
+                this._parsePids.push(0x11);
             }
         }
+
+        this._versions[pid] = data.version_number;
     }
 
     private _onPMT(pid, data): void {
+
+        if (this._versions.hasOwnProperty(pid) && data.version_number === this._versions[pid]) {
+            return;
+        }
 
         if (this._ready === false && this._provideServiceId !== null && this._provideEventId === null) {
             this._ready = true;
@@ -371,61 +366,50 @@ export default class TSFilter extends stream.Duplex {
             this._providePids.push(data.PCR_PID);
         }
 
-        let i = 0, l = data.streams.length;
-        for (; i < l; i++) {
-            if (this._providePids.indexOf(data.streams[i].elementary_PID) === -1) {
-                this._providePids.push(data.streams[i].elementary_PID);
+        for (let stream of data.streams) {
+            if (this._providePids.indexOf(stream.elementary_PID) === -1) {
+                this._providePids.push(stream.elementary_PID);
             }
         }
 
-        // sleep
-        i = this._parsePids.indexOf(pid);
-        if (i !== -1) {
-            this._parsePids.splice(i, 1);
-
-            this._pmtTimer = setTimeout(() => {
-                this._parsePids.push(pid);
-            }, 1000);
-        }
+        this._versions[pid] = data.version_number;
     }
 
     private _onSDT(pid, data): void {
+
+        if (this._versions.hasOwnProperty(pid) && data.version_number === this._versions[pid]) {
+            return;
+        }
 
         if (this._tsid !== data.transport_stream_id) {
             return;
         }
 
-        let i = 0, j, l = data.services.length, m, name;
-        for (; i < l; i++) {
-            if (this._serviceIds.indexOf(data.services[i].service_id) === -1) {
+        for (let service of data.services) {
+            if (this._serviceIds.indexOf(service.service_id) === -1) {
                 continue;
             }
 
-            name = '';
+            let desc = service.descriptors.find(descriptor => descriptor.descriptor_tag === 0x48);
+            let name = desc !== void 0 ? new aribts.TsChar(desc.service_name_char).decode() : '';
 
-            for (j = 0, m = data.services[i].descriptors.length; j < m; j++) {
-                if (data.services[i].descriptors[j].descriptor_tag === 0x48) {
-                    name = new aribts.TsChar(data.services[i].descriptors[j].service_name_char).decode();
-                    break;
-                }
-            }
-
-            if (this._services.some(service => service.id === data.services[i].service_id) === false) {
+            if (!this._services.some(_service => _service.id === service.service_id)) {
                 this._services.push({
                     networkId: data.original_network_id,
-                    serviceId: data.services[i].service_id,
+                    serviceId: service.service_id,
                     name: name
                 });
             }
         }
 
-        //if (this._serviceIds.every(id => this._services.some(service => service.id === id)) === true) { }
-        this.emit('services', this._services);
+        process.nextTick(() => this.emit('services', this._services));
 
-        i = this._parsePids.indexOf(pid);
-        if (i !== -1) {
-            this._parsePids.splice(i, 1);
+        let index = this._parsePids.indexOf(pid);
+        if (index !== -1) {
+            this._parsePids.splice(index, 1);
         }
+
+        this._versions[pid] = data.version_number;
     }
 
     private _onEIT(pid, data): void {
@@ -452,7 +436,8 @@ export default class TSFilter extends stream.Duplex {
 
                     log.debug('TSFilter is closing because eventId=%d has ended...', this._provideEventId);
 
-                    return this._close();
+                    process.nextTick(() => this.emit('close'));
+                    return;
                 }
             }
         }
@@ -461,26 +446,26 @@ export default class TSFilter extends stream.Duplex {
         if (this._parseEIT === true && data.table_id !== 0x4E && data.table_id !== 0x4F) {
             epg.write(data);
 
-            if (!this._epgReady) {
+            if (this._epgReady === false) {
                 this._updateEpgState(data);
             }
         }
     }
 
     private _onTOT(pid, data): void {
-
-        this._streamTime = getTime(data.JST_time);
+        this._streamTime = TSFilter.getTime(data.JST_time);
     }
 
     private _updateEpgState(data): void {
+
         const networkId = data.original_network_id;
         const serviceId = data.service_id;
 
-        if (typeof this._epgState[networkId] === 'undefined') {
+        if (this._epgState[networkId] === void 0) {
             this._epgState[networkId] = {};
         }
 
-        if (typeof this._epgState[networkId][serviceId] === 'undefined') {
+        if (this._epgState[networkId][serviceId] === void 0) {
             this._epgState[networkId][serviceId] = {
                 basic: {
                     flags: [],
@@ -558,16 +543,17 @@ export default class TSFilter extends stream.Duplex {
             });
         });
 
-        if (this._epgReady) {
-            this.emit("epgReady");
+        if (this._epgReady === true) {
+            process.nextTick(() => this.emit("epgReady"));
         }
     }
 
     private _close(): void {
 
-        if (this._closed === true) {
+        if (this._closed) {
             return;
         }
+
         this._closed = true;
 
         // clear timer
@@ -577,27 +563,14 @@ export default class TSFilter extends stream.Duplex {
         process.nextTick(() => {
             this._readableState.buffer = [];
             this._readableState.length = 0;
-            this._patsec.fill(0);
             this._patsec = null;
-            this._packet.fill(0);
-            this._packet = null;
-            this._buffer.forEach(packet => {
-                packet.fill(0);
-                packet = null;
-            });
-            this._buffer = null;
-            this._parses.forEach(packet => {
-                packet.fill(0);
-                packet = null;
-            });
-            this._parses = null;
+            this._remain = null;
         });
 
         // clear instance
         this._parser.removeAllListeners();
         this._parser.end();
         this._parser = null;
-        //this._tsUtil = null;
 
         // update status
         if (this._parseEIT === true && this._targetNetworkId !== null) {
@@ -608,32 +581,33 @@ export default class TSFilter extends stream.Duplex {
 
         log.debug('TSFilter has closed (serviceId=%s, eventId=%s)', this._provideServiceId, this._provideEventId);
     }
-}
 
-function calcCRC32(buf: Buffer): number {
-    let i = 0, l = buf.length, crc = -1;
-    for (; i < l; i++) {
-        crc = (crc << 8) ^ CRC32_TABLE[((crc >>> 24) ^ buf[i])];
+    static calcCRC32(buf: Buffer): number {
+
+        let i = 0, l = buf.length, crc = -1;
+        for (; i < l; i++) {
+            crc = (crc << 8) ^ CRC32_TABLE[((crc >>> 24) ^ buf[i])];
+        }
+        return crc;
     }
-    return crc;
-}
 
-function getTime(buffer: Buffer): number {
+    static getTime(buffer: Buffer): number {
 
-    let mjd = (buffer[0] << 8) | buffer[1];
+        let mjd = (buffer[0] << 8) | buffer[1];
 
-    let y = (((mjd - 15078.2) / 365.25) | 0);
-    let m = (((mjd - 14956.1 - ((y * 365.25) | 0)) / 30.6001) | 0);
-    let d = mjd - 14956 - ((y * 365.25) | 0) - ((m * 30.6001) | 0);
+        let y = (((mjd - 15078.2) / 365.25) | 0);
+        let m = (((mjd - 14956.1 - ((y * 365.25) | 0)) / 30.6001) | 0);
+        let d = mjd - 14956 - ((y * 365.25) | 0) - ((m * 30.6001) | 0);
 
-    let k = (m === 14 || m === 15) ? 1 : 0;
+        let k = (m === 14 || m === 15) ? 1 : 0;
 
-    y = y + k + 1900;
-    m = m - 1 - k * 12;
+        y = y + k + 1900;
+        m = m - 1 - k * 12;
 
-    let h = (buffer[2] >> 4) * 10 + (buffer[2] & 0x0F);
-    let i = (buffer[3] >> 4) * 10 + (buffer[3] & 0x0F);
-    let s = (buffer[4] >> 4) * 10 + (buffer[4] & 0x0F);
+        let h = (buffer[2] >> 4) * 10 + (buffer[2] & 0x0F);
+        let i = (buffer[3] >> 4) * 10 + (buffer[3] & 0x0F);
+        let s = (buffer[4] >> 4) * 10 + (buffer[4] & 0x0F);
 
-    return new Date(y, m - 1, d, h, i, s).getTime();
+        return new Date(y, m - 1, d, h, i, s).getTime();
+    }
 }

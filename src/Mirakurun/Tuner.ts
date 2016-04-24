@@ -102,7 +102,7 @@ export default class Tuner {
 
     getEPG(channel: ChannelItem, seconds?: number): Promise<void> {
 
-        seconds = seconds || 60 * 1000
+        seconds = seconds || 60;
 
         let networkId;
 
@@ -141,7 +141,7 @@ export default class Tuner {
 
     getServices(channel: ChannelItem, seconds?: number): Promise<db.Service[]> {
 
-        seconds = seconds || 10 * 1000
+        seconds = seconds || 10;
 
         const setting: StreamSetting = {
             channel: channel,

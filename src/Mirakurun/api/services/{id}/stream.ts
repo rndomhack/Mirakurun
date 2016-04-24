@@ -17,7 +17,7 @@
 
 import { Operation } from 'express-openapi';
 import * as api from '../../../api';
-import Service from '../../../Service';
+import _ from '../../../_';
 
 export const parameters = [
     {
@@ -44,11 +44,11 @@ export const parameters = [
 
 export const get: Operation = (req, res) => {
 
-    let service = Service.get(req.params.id);
+    let service = _.service.get(req.params.id);
 
     if (service === null) {
         // deprecated
-        service = Service.all().find(item => item.serviceId === req.params.id);
+        service = _.service.all().find(item => item.serviceId === req.params.id);
     }
 
     if (service === null || service === undefined) {

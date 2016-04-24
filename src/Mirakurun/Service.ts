@@ -63,7 +63,7 @@ export default class Service {
             if (serviceId === void 0) {
                 if (item.id !== id) return false;
             } else {
-                if (item.networkId !== id && item.serviceId !== serviceId) return false;
+                if (item.networkId !== id || item.serviceId !== serviceId) return false;
             }
 
             return true;
@@ -82,7 +82,7 @@ export default class Service {
             if (serviceId === void 0) {
                 if (item.id !== id) return false;
             } else {
-                if (item.networkId !== id && item.serviceId !== serviceId) return false;
+                if (item.networkId !== id || item.serviceId !== serviceId) return false;
             }
 
             return true;
@@ -99,7 +99,7 @@ export default class Service {
 
     save(): void {
         clearTimeout(this._saveTimerId);
-        this._saveTimerId = setTimeout(() => this._save(), 1000);
+        this._saveTimerId = setTimeout(() => this._save(), 5 * 1000);
     }
 
     private _load(): void {
@@ -110,9 +110,7 @@ export default class Service {
 
         db.loadServices().forEach(service => {
 
-            const channelItem = _.channel.get(service.channel.type, service.channel.channel);
-
-            if (channelItem === null) {
+            if (!_.channel.exists(service.channel.type, service.channel.channel)) {
                 dropped = true;
                 return;
             }
@@ -127,7 +125,7 @@ export default class Service {
                 return;
             }
 
-            new ServiceItem(service, channelItem);
+            new ServiceItem(service);
         });
 
         if (dropped === true) {
@@ -142,37 +140,5 @@ export default class Service {
         db.saveServices(
             this._items.map(service => service.export())
         );
-    }
-
-    static add(item: ServiceItem): void {
-        return _.service.add(item);
-    }
-
-    static get(id: number): ServiceItem;
-    static get(networkId: number, serviceId: number): ServiceItem;
-    static get(id: number, serviceId?: number) {
-        return _.service.get(id, serviceId);
-    }
-
-    static exists(id: number): boolean;
-    static exists(networkId: number, serviceId: number): boolean;
-    static exists(id: number, serviceId?: number) {
-        return _.service.exists(id, serviceId);
-    }
-
-    static findByChannel(channel: ChannelItem): ServiceItem[] {
-        return _.service.findByChannel(channel);
-    }
-
-    static findByNetworkId(networkId: number): ServiceItem[] {
-        return _.service.findByNetworkId(networkId);
-    }
-
-    static all(): ServiceItem[] {
-        return _.service.all();
-    }
-
-    static save(): void {
-        return _.service.save();
     }
 }

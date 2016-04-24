@@ -16,7 +16,7 @@
 'use strict';
 
 import { Operation } from 'express-openapi';
-import Channel from '../../Channel';
+import _ from '../../_';
 
 export const parameters = [
     {
@@ -31,7 +31,7 @@ export const parameters = [
 export const get: Operation = (req, res) => {
 
     res.json(
-        Channel.findByType(req.params.type).map(channel => {
+        _.channel.findByType(req.params.type).map(channel => {
 
             const ch: any = channel.export();
 

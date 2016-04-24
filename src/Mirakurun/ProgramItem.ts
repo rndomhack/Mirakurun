@@ -61,15 +61,19 @@ export default class ProgramItem {
 
     update(data: db.Program): void {
 
-        /* if (data.id !== this._data.id) {
-            if (_.program.exists(data.id) === true) {
+        if (data.id !== this._data.id) {
+            if (_.program.exists(data.id)) {
                 _.program.remove(this);
+                _.program.save();
+
+                this._removed = true;
                 return;
             }
-        } */
+        }
 
         if (common.updateObject(this._data, data)) {
             _.program.save();
+
             this._updated();
         }
     }

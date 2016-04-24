@@ -26,7 +26,7 @@ export default class ServiceItem {
 
     private _removed: boolean = false;
 
-    constructor(private _data: db.Service, private _channel: ChannelItem) {
+    constructor(private _data: db.Service) {
 
         _.service.add(this);
 
@@ -50,7 +50,7 @@ export default class ServiceItem {
     }
 
     get channel(): ChannelItem {
-        return this._channel;
+        return _.channel.get(this._data.channel.type, this._data.channel.channel);
     }
 
     remove(): void {
@@ -62,9 +62,17 @@ export default class ServiceItem {
 
     update(data: db.Service) {
 
-        if (this._data.name !== data.name) {
-            this._data.name = data.name;
+        if (data.id !== this._data.id) {
+            if (_.service.exists(data.id)) {
+                _.service.remove(this);
+                _.service.save();
 
+                this._removed = true;
+                return;
+            }
+        }
+
+        if (common.updateObject(this._data, data)) {
             _.service.save();
 
             this._updated();

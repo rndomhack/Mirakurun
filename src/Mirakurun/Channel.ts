@@ -170,20 +170,4 @@ export default class Channel {
             return Promise.resolve();
         });
     }
-
-    static add(item: ChannelItem): void {
-        return _.channel.add(item);
-    }
-
-    static get(type: common.ChannelType, channel: string): ChannelItem {
-        return _.channel.get(type, channel);
-    }
-
-    static findByType(type: common.ChannelType): ChannelItem[] {
-        return _.channel.findByType(type);
-    }
-
-    static all(): ChannelItem[] {
-        return _.channel.all();
-    }
 }

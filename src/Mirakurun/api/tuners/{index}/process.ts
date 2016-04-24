@@ -17,7 +17,7 @@
 
 import { Operation } from 'express-openapi';
 import * as api from '../../../api';
-import Tuner from '../../../Tuner';
+import _ from '../../../_';
 
 export const parameters = [
     {
@@ -31,7 +31,7 @@ export const parameters = [
 
 export const get: Operation = (req, res) => {
 
-    let tuner = Tuner.get(req.params.index);
+    let tuner = _.tuner.get(req.params.index);
 
     if (tuner === null || Number.isInteger(tuner.pid) === false) {
         api.responseError(res, 404);
@@ -73,7 +73,7 @@ get.apiDoc = {
 
 export const del: Operation = (req, res) => {
 
-    let tuner = Tuner.get(req.params.index);
+    let tuner = _.tuner.get(req.params.index);
 
     if (tuner === null || Number.isInteger(tuner.pid) === false) {
         api.responseError(res, 404);

@@ -102,7 +102,7 @@ export default class ChannelItem {
 
                         log.debug('ChannelItem#"%s" serviceId=%d: %s', this._config.name, serviceId, JSON.stringify(service, null, '  '));
 
-                        new ServiceItem(service, this);
+                        new ServiceItem(service);
 
                         resolve();
                     })
@@ -141,7 +141,7 @@ export default class ChannelItem {
 
                                 item.update(service);
                             } else if (add) {
-                                new ServiceItem(service, this);
+                                new ServiceItem(service);
                             }
                         });
 

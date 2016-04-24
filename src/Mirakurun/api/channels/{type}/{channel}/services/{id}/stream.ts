@@ -17,8 +17,7 @@
 
 import { Operation } from 'express-openapi';
 import * as api from '../../../../../../api';
-import Channel from '../../../../../../Channel';
-import Service from '../../../../../../Service';
+import _ from '../../../../../../_';
 
 export const parameters = [
     {
@@ -58,14 +57,14 @@ export const parameters = [
 
 export const get: Operation = (req, res) => {
 
-    const channel = Channel.get(req.params.type, req.params.channel);
+    const channel = _.channel.get(req.params.type, req.params.channel);
 
     if (channel === null) {
         api.responseError(res, 404);
         return;
     }
 
-    const service = Service.findByChannel(channel).find(sv => (sv.id === req.params.id || sv.serviceId === req.params.id));
+    const service = _.service.findByChannel(channel).find(sv => (sv.id === req.params.id || sv.serviceId === req.params.id));
 
     if (!service) {
         api.responseError(res, 404);

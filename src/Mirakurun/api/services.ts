@@ -17,11 +17,11 @@
 
 import { Operation } from 'express-openapi';
 import * as api from '../api';
-import Service from '../Service';
+import _ from '../_';
 
 export const get: Operation = (req, res) => {
 
-    api.responseJSON(res, Service.all().map(service => service.export()));
+    api.responseJSON(res, _.service.all().map(service => service.export()));
 };
 
 get.apiDoc = {

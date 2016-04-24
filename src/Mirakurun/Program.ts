@@ -80,7 +80,7 @@ export default class Program {
 
     save(): void {
         clearTimeout(this._saveTimerId);
-        this._saveTimerId = setTimeout(() => this._save(), 1000);
+        this._saveTimerId = setTimeout(() => this._save(), 5 * 1000);
     }
 
     private _load(): void {

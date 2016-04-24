@@ -17,13 +17,13 @@
 
 import { Operation } from 'express-openapi';
 import * as api from '../api';
-import Channel from '../Channel';
+import _ from '../_';
 
 export const get: Operation = (req, res) => {
 
     api.responseJSON(
         res,
-        Channel.all().map(channel => {
+        _.channel.all().map(channel => {
 
             const ch: any = channel.export();
 

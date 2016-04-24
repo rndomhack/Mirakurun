@@ -50,12 +50,12 @@ export default class Tuner {
         this._load();
     }
 
-    get devices(): TunerDevice[] {
-        return this._devices;
-    }
-
     get(index: number): TunerDevice {
         return this._devices.find(device => device.index === index) || null;
+    }
+
+    all(): TunerDevice[] {
+        return this._devices;
     }
 
     typeExists(type: common.ChannelType): boolean {
@@ -180,7 +180,7 @@ export default class Tuner {
                                     id: ServiceItem.createId(service.networkId, service.serviceId),
                                     serviceId: service.serviceId,
                                     networkId: service.networkId,
-                                    name: '',
+                                    name: service.name,
                                     channel: {
                                         type: channel.type,
                                         channel: channel.channel
@@ -339,37 +339,5 @@ export default class Tuner {
 
     private _getDevicesByType(type: common.ChannelType): TunerDevice[] {
         return this._devices.filter(device => device.config.types.indexOf(type) !== -1);
-    }
-
-    static all(): TunerDevice[] {
-        return _.tuner.devices;
-    }
-
-    static get(index: number): TunerDevice {
-        return _.tuner.get(index);
-    }
-
-    static typeExists(type: common.ChannelType): boolean {
-        return _.tuner.typeExists(type);
-    }
-
-    static getChannelStream(channel: ChannelItem, user: common.User): Promise<stream.Readable> {
-        return _.tuner.getChannelStream(channel, user);
-    }
-
-    static getServiceStream(service: ServiceItem, user: common.User): Promise<stream.Readable> {
-        return _.tuner.getServiceStream(service, user);
-    }
-
-    static getProgramStream(program: ProgramItem, user: common.User): Promise<stream.Readable> {
-        return _.tuner.getProgramStream(program, user);
-    }
-
-    static getEPG(channel: ChannelItem, seconds: number): Promise<void> {
-        return _.tuner.getEPG(channel, seconds);
-    }
-
-    static getServices(channel: ChannelItem): Promise<db.Service[]> {
-        return _.tuner.getServices(channel);
     }
 }

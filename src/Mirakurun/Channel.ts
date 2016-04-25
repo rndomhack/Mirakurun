@@ -36,7 +36,7 @@ export default class Channel {
 
         this._load();
 
-        setTimeout(this._epgGatherer.bind(this), 60 * 1000);
+        process.nextTick(() => this._epgGatherer());
     }
 
     add(item: ChannelItem): void {
@@ -132,6 +132,11 @@ export default class Channel {
 
     private _epgGatherer(): void {
 
+        if (_.service === void 0) {
+            process.nextTick(() => this._epgGatherer());
+            return;
+        }
+
         queue.add(() => {
 
             const networkIds = [...new Set(_.service.all().map(item => item.networkId))];
@@ -143,6 +148,8 @@ export default class Channel {
                 if (services.length === 0) {
                     return;
                 }
+
+                log.info('Network#%d EPG gathering has queued', networkId);
 
                 queue.add(() => {
                     return new Promise((resolve, reject) => {
@@ -163,7 +170,7 @@ export default class Channel {
             });
 
             queue.add(() => {
-                setTimeout(this._epgGatherer.bind(this), this._epgGatherInterval);
+                setTimeout(() => this._epgGatherer(), this._epgGatherInterval);
                 return Promise.resolve();
             });
 

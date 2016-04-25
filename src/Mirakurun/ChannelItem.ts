@@ -177,9 +177,9 @@ export default class ChannelItem {
         }
 
         if (typeof this._config.serviceId === 'undefined' && this.getServices().length === 0) {
-            process.nextTick(() => this.serviceScan(true));
+            this.serviceScan(true);
         } else {
-            process.nextTick(() => this.serviceScan(false));
+            this.serviceScan(false);
         }
     }
 }
